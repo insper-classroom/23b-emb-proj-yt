@@ -6,8 +6,7 @@ Desenvolvendo um controle remoto.
 
 ### Integrantes
 
-- Nome1
-- Nome2
+- Fernanda de Oliveira Pereira
 
 ### Ideia
 
