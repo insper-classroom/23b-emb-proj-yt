@@ -25,6 +25,12 @@
 #define BUT_IDX      11
 #define BUT_IDX_MASK (1 << BUT_IDX)
 
+// Novo botão
+#define BUT2_PIO      PIOA
+#define BUT2_PIO_ID   ID_PIOA
+#define BUT2_IDX      12
+#define BUT2_IDX_MASK (1 << NEW_BUT_IDX)
+
 // usart (bluetooth ou serial)
 // Descomente para enviar dados
 // pela serial debug
@@ -56,6 +62,7 @@ extern void vApplicationIdleHook(void);
 extern void vApplicationTickHook(void);
 extern void vApplicationMallocFailedHook(void);
 extern void xPortSysTickHandler(void);
+QueueHandle_t buttonQueue;
 
 /************************************************************************/
 /* constants                                                            */
@@ -108,6 +115,22 @@ extern void vApplicationMallocFailedHook(void) {
 /************************************************************************/
 
 void io_init(void) {
+	void PIOA_Handler() {
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+	
+		if (pio_get(BUT_PIO, PIO_INPUT, BUT_IDX_MASK) == 0) {
+			// Button pressed
+			uint8_t buttonState = '1';
+			xQueueSendFromISR(buttonQueue, &buttonState, &xHigherPriorityTaskWoken);
+			} else {
+			// Button released
+			uint8_t buttonState = '0';
+			xQueueSendFromISR(buttonQueue, &buttonState, &xHigherPriorityTaskWoken);
+		}
+	
+		// Clear the interrupt flag
+		pio_clear(BUT_PIO, PIO_IT_AIM);
+	}
 
 	// Ativa PIOs
 	pmc_enable_periph_clk(LED_PIO_ID);
@@ -116,7 +139,16 @@ void io_init(void) {
 	// Configura Pinos
 	pio_configure(LED_PIO, PIO_OUTPUT_0, LED_IDX_MASK, PIO_DEFAULT | PIO_DEBOUNCE);
 	pio_configure(BUT_PIO, PIO_INPUT, BUT_IDX_MASK, PIO_PULLUP);
+	pio_configure(BUT2_PIO, PIO_INPUT, BUT2_IDX_MASK, PIO_PULLUP);
+	pio_handler_set(BUT_PIO, BUT_PIO_ID, BUT_IDX_MASK, PIO_IT_RISE_EDGE, button1_interrupt_handler);
+	pio_handler_set(BUT2_PIO, BUT2_PIO_ID, BUT2_IDX_MASK, PIO_IT_RISE_EDGE, button2_interrupt_handler);
+	pio_enable_interrupt(BUT_PIO, BUT_IDX_MASK);
+	pio_enable_interrupt(BUT2_PIO, BUT2_IDX_MASK);
+	NVIC_EnableIRQ(BUT_PIO_ID);
+	NVIC_EnableIRQ(BUT2_PIO_ID);
 }
+
+
 
 static void configure_console(void) {
 	const usart_serial_options_t uart_serial_options = {
@@ -201,7 +233,7 @@ int hc05_init(void) {
 	vTaskDelay( 500 / portTICK_PERIOD_MS);
 	usart_send_command(USART_COM, buffer_rx, 1000, "AT", 100);
 	vTaskDelay( 500 / portTICK_PERIOD_MS);
-	usart_send_command(USART_COM, buffer_rx, 1000, "AT+NAMEagoravai", 100);
+	usart_send_command(USART_COM, buffer_rx, 1000, "AT+NAMEFernanda", 100);
 	vTaskDelay( 500 / portTICK_PERIOD_MS);
 	usart_send_command(USART_COM, buffer_rx, 1000, "AT", 100);
 	vTaskDelay( 500 / portTICK_PERIOD_MS);
@@ -223,22 +255,34 @@ void task_bluetooth(void) {
 	io_init();
 
 	char button1 = '0';
+	char button2 = '0';
 	char eof = 'X';
 
 	// Task não deve retornar.
 	while(1) {
 		// atualiza valor do botão
+		if (xQueueReceive(buttonQueue, &button1, portMAX_DELAY) == pdTRUE) {
 		if(pio_get(BUT_PIO, PIO_INPUT, BUT_IDX_MASK) == 0) {
 			button1 = '1';
 		} else {
 			button1 = '0';
 		}
-
+        // Atualiza o valor do novo botão
+        if(pio_get(BUT2_PIO, PIO_INPUT, BUT2_IDX_MASK) == 0) {
+	        button2 = '1';
+	        } else {
+	        button2 = '0';
+        }
 		// envia status botão
 		while(!usart_is_tx_ready(USART_COM)) {
 			vTaskDelay(10 / portTICK_PERIOD_MS);
 		}
 		usart_write(USART_COM, button1);
+		
+		while(!usart_is_tx_ready(USART_COM)) {
+			vTaskDelay(10 / portTICK_PERIOD_MS);
+		}
+		usart_write(USART_COM, button2);
 		
 		// envia fim de pacote
 		while(!usart_is_tx_ready(USART_COM)) {
@@ -249,6 +293,7 @@ void task_bluetooth(void) {
 		// dorme por 500 ms
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
+}
 }
 
 /************************************************************************/
@@ -261,6 +306,7 @@ int main(void) {
 	board_init();
 
 	configure_console();
+	buttonQueue = xQueueCreate(10, sizeof(uint8_t));
 
 	/* Create task to make led blink */
 	xTaskCreate(task_bluetooth, "BLT", TASK_BLUETOOTH_STACK_SIZE, NULL,	TASK_BLUETOOTH_STACK_PRIORITY, NULL);
