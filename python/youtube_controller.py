@@ -6,7 +6,7 @@ import logging
 
 class MyControllerMap:
     def __init__(self):
-        self.button = {'A': 'L', 'B': 'J'} 
+        self.button = {'A': 'L', 'B': 'K', 'C': 'J', 'D': 'VOLUME_UP', 'E': 'VOLUME_DOWN'} # Fast forward (10 seg) pro Youtube
 
 class SerialControllerInterface:
     # Protocolo
@@ -18,30 +18,52 @@ class SerialControllerInterface:
         self.mapping = MyControllerMap()
         self.incoming = '0'
         pyautogui.PAUSE = 0  ## remove delay
-    
+
     def update(self):
-        ## Sync protocol
-        while self.incoming != b'X':
+        # Sync protocol
+        while True:
             self.incoming = self.ser.read()
             logging.debug("Received INCOMING: {}".format(self.incoming))
+            if self.incoming == b'X':
+                break  
 
         data = self.ser.read()
         logging.debug("Received DATA: {}".format(data))
 
+        if data == b'W':
+            self.ser.write(b'W')
+            print("HANDSHAKE")
         if data == b'1':
             logging.info("KEYDOWN A")
             pyautogui.keyDown(self.mapping.button['A'])
         elif data == b'0':
             logging.info("KEYUP A")
             pyautogui.keyUp(self.mapping.button['A'])
-            
-        # Handle the B button (backward 10 seconds)
-        if data == b'2':
+        elif data == b'3':
+            print("datab1")
+            logging.info("KEYDOWN A")
+            pyautogui.keyDown(self.mapping.button['A'])
             logging.info("KEYDOWN B")
             pyautogui.keyDown(self.mapping.button['B'])
-        elif data == b'3':
-            logging.info("KEYUP B")
-            pyautogui.keyUp(self.mapping.button['B'])
+        elif data == b'2':
+            print("datab0")
+            logging.info("KEYDOWN B")
+            pyautogui.keyDown(self.mapping.button['B'])
+        elif data == b'5':
+            logging.info("KEYDOWN A")
+            pyautogui.keyDown(self.mapping.button['A'])
+            logging.info("KEYDOWN C")
+            pyautogui.keyDown(self.mapping.button['C'])
+        elif data == b'4':
+            logging.info("KEYDOWN C")
+            pyautogui.keyDown(self.mapping.button['C'])
+        elif data == b'7':
+            logging.info("KEYDOWN D")
+            pyautogui.keyDown(self.mapping.button['D'])
+        elif data == b'9':
+            logging.info("KEYDOWN E")
+            pyautogui.keyDown(self.mapping.button['E'])
+        
 
         self.incoming = self.ser.read()
 
