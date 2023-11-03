@@ -11,31 +11,31 @@ Desenvolvendo um controle remoto.
 ### Ideia
 
 <!--  Descreva aqui em poucas palavras qual a ideia do seu controle. Se ele vai ser de jogo ou de aplicação -->
-Controle para a plataforma Netflix. Sua função será começar/pausar o conteúdo, avançar/voltar 5s de sua duração e controlar seu volume.
+Controle para a plataforma Youtube. Sua função será começar/pausar o conteúdo, avançar/voltar 5s de sua duração e controlar seu volume.
 
 ### Nome
 
 <!-- De um nome ao seu controle! -->
-RemoteFlix
+RemoteTube
 
 ### Usuários 
 
 <!-- Descreva aqui quem seriam os possíveis usuários deste controle. -->
-Usuários da plataforma Netflix
+Usuários da plataforma Youtube
 
 ### Software/Jogo 
 
 <!-- Qual software que seu controle vai controlar? -->
-Netflix
+Youtube
 
 ### Jornada do usuários (3 pts)
 
 <!-- Descreva ao menos duas jornadas de usuários distintos, é para caprichar! -->
 Jornada 1:
-Maria gosta de assistir filmes e séries na Netflix após o trabalho, então ela conecta seu computador na televisão e assiste as novidades do momento. Porém, para controlar o vídeo (pausar, soltar, voltar/pausar e aumentar/diminuir o volume) ela precisa levantar do ofá e sair do seu conforto. O RemoteFlix possibilitará que Maria controle seus vídeos diretamente do sofá.
+Maria gosta de assistir vídeos no Youtube após o trabalho, então ela conecta seu computador na televisão e assiste as novidades do momento. Porém, para controlar o vídeo (pausar, soltar, voltar/pausar e aumentar/diminuir o volume) ela precisa levantar do ofá e sair do seu conforto. O RemoteTube possibilitará que Maria controle seus vídeos diretamente do sofá.
 
 Jornada 2:
-Ricardo tem um tempo muito corrido e junta seu entretenimento com seus exercícios físicos, então enquanto ele faz esteira, ele assiste algo na Netflix. Em alguns momentos, Ricardo se distrai e perde alguma informação do filme/série. Com um controle em sua mão, seria muito mais fácil de voltar um pouco e garantir seu entendimento do conteúdo.
+Ricardo tem um tempo muito corrido e junta seu entretenimento com seus exercícios físicos, então enquanto ele faz esteira, ele assiste algo no Youtube. Em alguns momentos, Ricardo se distrai e perde alguma informação do vídeo. Com um controle em sua mão, seria muito mais fácil de voltar um pouco e garantir seu entendimento do conteúdo.
 
 ### Comandos/ Feedbacks (2 pts)
 
@@ -71,4 +71,4 @@ Entradas digitais: - 3 botões (vermelho, verde e amarelo)
 <!--
 Faca um esboco de como seria esse controle (vai ter uma etapa que terão que detalhar melhor isso).
 -->
-<img src="/remoteflix.png">
+<img src="/remotetube.png">
