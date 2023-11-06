@@ -87,8 +87,8 @@ TimerHandle_t xTimer;
 QueueHandle_t xQueueButFreq;
 QueueHandle_t xQueueProc;
 
-int flagHandshake = 0;
-volatile int flagOn = 0;
+int hs = 0;
+volatile int flag = 0;
 
 typedef struct {
   uint value;
@@ -124,11 +124,11 @@ static void config_AFEC_pot(Afec *afec, uint32_t afec_id, uint32_t afec_channel,
 void but_callback(void) {
 	// Verify if it is a rising edge
 	uint increment = 1;
-	if (flagOn == 0) {
-		// Button was not previously pressed, set flagOn to 1
-		flagOn = 1;
+	if (flag == 0) {
+		// Button was not previously pressed, set flag to 1
+		flag = 1;
 	}
-	if (flagOn == 1) {
+	if (flag == 1) {
 		xQueueSendFromISR(xQueueButFreq, (void *)&increment, 10);
 	}
 }
@@ -136,11 +136,11 @@ void but_callback(void) {
 void but1_callback(void) {
 	// Verify if it is a rising edge
 	uint increment = 5;
-	if (flagOn == 0) {
-		// Button was not previously pressed, set flagOn to 1
-		flagOn = 1;
+	if (flag == 0) {
+		// Button was not previously pressed, set flag to 1
+		flag = 1;
 	}
-	if (flagOn == 1) {
+	if (flag == 1) {
 		xQueueSendFromISR(xQueueButFreq, (void *)&increment, 10);
 	}
 }
@@ -148,11 +148,11 @@ void but1_callback(void) {
 void but2_callback(void) {
 	// Verify if it is a rising edge
 	uint increment = 7;
-	if (flagOn == 0) {
-		// Button was not previously pressed, set flagOn to 1
-		flagOn = 1;
+	if (flag == 0) {
+		// Button was not previously pressed, set flag to 1
+		flag = 1;
 	}
-	if (flagOn == 1) {
+	if (flag == 1) {
 		xQueueSendFromISR(xQueueButFreq, (void *)&increment, 10);
 	}
 }
@@ -160,11 +160,11 @@ void but2_callback(void) {
 void but3_callback(void) {
 	// Verify if it is a rising edge
 	uint increment = 9;
-	if (flagOn == 0) {
-		// Button was not previously pressed, set flagOn to 1
-		flagOn = 1;
+	if (flag == 0) {
+		// Button was not previously pressed, set flag to 1
+		flag = 1;
 	}
-	if (flagOn == 1) {
+	if (flag == 1) {
 		xQueueSendFromISR(xQueueButFreq, (void *)&increment, 10);
 	}
 
@@ -206,7 +206,7 @@ static void AFEC_pot_callback(void) {
   adcData adc;
   adc.value = afec_channel_get_value(AFEC_POT, AFEC_POT_CHANNEL);
   BaseType_t xHigherPriorityTaskWoken = pdTRUE;
-  if(flagOn == 1) {
+  if(flag == 1) {
   	xQueueSendFromISR(xQueueProc, &adc, &xHigherPriorityTaskWoken);
   }
 }
@@ -388,7 +388,7 @@ void task_comunicacao(void){
 	while(1){
 		if (usart_read(USART_COM, &readChar)==1){
 			if (readChar == 'W'){
-				flagHandshake = 1;
+				hs = 1;
 			}
 			
 		}
@@ -428,15 +428,14 @@ void task_bluetooth(void) {
 	char button2= '0';
 	char button3= '0';
 	char eof = 'X';
-	int recived = 0;
-	int flagPulo = 0;
+	int r = 0;
 	char readChar;
     // variável para recever dados da fila
   	adcData adc;
 	// Task não deve retornar.
   while (1) {
-	  if (flagOn == 1) {
-		  if (flagHandshake == 0) {
+	  if (flag == 1) {
+		  if (hs == 0) {
 			  button1 = 'W';
 			  while (!usart_is_tx_ready(USART_COM)) {
 				  vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -448,35 +447,35 @@ void task_bluetooth(void) {
 				  vTaskDelay(10 / portTICK_PERIOD_MS);
 			  }
 			  usart_write(USART_COM, eof);
-			  flagHandshake = 1;
+			  hs = 1;
 
 			  // Sleep for 10 ms
 			  vTaskDelay(10 / portTICK_PERIOD_MS);
 			  } else {
 			  // Update button value
-			  if (xQueueReceive(xQueueButFreq, &recived, 10)) {
-				  if (recived == 1) {
+			  if (xQueueReceive(xQueueButFreq, &r, 10)) {
+				  if (r == 1) {
 					pio_set(LED_PIO1, LED_PIO_IDX_MASK1);
 					vTaskDelay(50);
 					pio_clear(LED_PIO1, LED_PIO_IDX_MASK1);
 					button1 = '1';
 					// Button was released, set flagOn to 0
-				    flagOn = 0;
-				} else if (recived == 5) {
+				    flag = 0;
+				} else if (r == 5) {
 				pio_set(LED_PIO2, LED_PIO_IDX_MASK2);
 				vTaskDelay(50);
 				pio_clear(LED_PIO2, LED_PIO_IDX_MASK2);
 				button1 = '5';
-				flagOn = 0;
-				} else if (recived == 7) {
+				flag = 0;
+				} else if (r == 7) {
 				pio_set(LED_PIO3, LED_PIO_IDX_MASK3);
 				vTaskDelay(50);
 				pio_clear(LED_PIO3, LED_PIO_IDX_MASK3);
 				button1 = '7';
-				flagOn = 0;
-				} else if (recived == 9) {
+				flag = 0;
+				} else if (r == 9) {
 				button1 = '9';
-				flagOn = 0;
+				flag = 0;
 			}
 			  }
 
