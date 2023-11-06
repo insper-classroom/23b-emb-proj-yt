@@ -1,3 +1,10 @@
+/************************************************************************
+* 5 semestre - Eng. da Computao - Insper
+*
+* 2021 - Exemplo com HC05 com RTOS
+*
+*/
+
 #include <asf.h>
 #include "conf_board.h"
 #include <string.h>
@@ -6,17 +13,34 @@
 /* defines                                                              */
 /************************************************************************/
 
-// LEDs
-#define LED_PIO      PIOC
-#define LED_PIO_ID   ID_PIOC
-#define LED_IDX      8
-#define LED_IDX_MASK (1 << LED_IDX)
+// LED 1
+#define LED_PIO1          PIOC           
+#define LED_PIO_ID1       ID_PIOC              
+#define LED_PIO_IDX1      30                  
+#define LED_PIO_IDX_MASK1 (1 << LED_PIO_IDX1)  
 
-// Botão
+//LED 2
+#define LED_PIO2          PIOB                
+#define LED_PIO_ID2       ID_PIOB                
+#define LED_PIO_IDX2      2                    
+#define LED_PIO_IDX_MASK2 (1 << LED_PIO_IDX2)  
+
+//LED 3
+#define LED_PIO3          PIOA               
+#define LED_PIO_ID3       ID_PIOA               
+#define LED_PIO_IDX3      0                
+#define LED_PIO_IDX_MASK3 (1 << LED_PIO_IDX3) 
+
+// Botões
 #define BUT_PIO      PIOC
 #define BUT_PIO_ID   ID_PIOC
 #define BUT_IDX      31
 #define BUT_IDX_MASK (1 << BUT_IDX)
+
+#define BUT1_PIO      PIOA
+#define BUT1_PIO_ID   ID_PIOA
+#define BUT1_IDX      19
+#define BUT1_IDX_MASK (1 << BUT1_IDX)
 
 #define BUT2_PIO      PIOD
 #define BUT2_PIO_ID   ID_PIOD
@@ -25,12 +49,23 @@
 
 #define BUT3_PIO      PIOA
 #define BUT3_PIO_ID   ID_PIOA
-#define BUT3_IDX      19
+#define BUT3_IDX      11
 #define BUT3_IDX_MASK (1 << BUT3_IDX)
 
+
+#define AFEC_POT AFEC0
+#define AFEC_POT_ID ID_AFEC0
+#define AFEC_POT_CHANNEL 0 // Canal do pino PD30
+
+// #define BUT_PIO      PIOA
+// #define BUT_PIO_ID   ID_PIOA
+// #define BUT_IDX      11
+// #define BUT_IDX_MASK (1 << BUT_IDX)
+
 // usart (bluetooth ou serial)
-// Descomente para enviar dados    
+// Descomente para enviar dados
 // pela serial debug
+
 
 #define DEBUG_SERIAL
 
@@ -45,9 +80,19 @@
 /************************************************************************/
 /* RTOS                                                                 */
 /************************************************************************/
+TimerHandle_t xTimer;
 
 #define TASK_BLUETOOTH_STACK_SIZE            (4096/sizeof(portSTACK_TYPE))
 #define TASK_BLUETOOTH_STACK_PRIORITY        (tskIDLE_PRIORITY)
+QueueHandle_t xQueueButFreq;
+QueueHandle_t xQueueProc;
+
+int flagHandshake = 0;
+volatile int flagOn = 0;
+
+typedef struct {
+  uint value;
+} adcData;
 
 /************************************************************************/
 /* prototypes                                                           */
@@ -59,6 +104,8 @@ extern void vApplicationIdleHook(void);
 extern void vApplicationTickHook(void);
 extern void vApplicationMallocFailedHook(void);
 extern void xPortSysTickHandler(void);
+static void config_AFEC_pot(Afec *afec, uint32_t afec_id, uint32_t afec_channel,
+                            afec_callback_t callback);
 
 /************************************************************************/
 /* constants                                                            */
@@ -73,6 +120,56 @@ extern void xPortSysTickHandler(void);
 /************************************************************************/
 
 /* Called if stack overflow during execution */
+
+void but_callback(void) {
+	// Verify if it is a rising edge
+	uint increment = 1;
+	if (flagOn == 0) {
+		// Button was not previously pressed, set flagOn to 1
+		flagOn = 1;
+	}
+	if (flagOn == 1) {
+		xQueueSendFromISR(xQueueButFreq, (void *)&increment, 10);
+	}
+}
+
+void but1_callback(void) {
+	// Verify if it is a rising edge
+	uint increment = 5;
+	if (flagOn == 0) {
+		// Button was not previously pressed, set flagOn to 1
+		flagOn = 1;
+	}
+	if (flagOn == 1) {
+		xQueueSendFromISR(xQueueButFreq, (void *)&increment, 10);
+	}
+}
+
+void but2_callback(void) {
+	// Verify if it is a rising edge
+	uint increment = 7;
+	if (flagOn == 0) {
+		// Button was not previously pressed, set flagOn to 1
+		flagOn = 1;
+	}
+	if (flagOn == 1) {
+		xQueueSendFromISR(xQueueButFreq, (void *)&increment, 10);
+	}
+}
+
+void but3_callback(void) {
+	// Verify if it is a rising edge
+	uint increment = 9;
+	if (flagOn == 0) {
+		// Button was not previously pressed, set flagOn to 1
+		flagOn = 1;
+	}
+	if (flagOn == 1) {
+		xQueueSendFromISR(xQueueButFreq, (void *)&increment, 10);
+	}
+
+}
+
 extern void vApplicationStackOverflowHook(xTaskHandle *pxTask,
 signed char *pcTaskName) {
 	printf("stack overflow %x %s\r\n", pxTask, (portCHAR *)pcTaskName);
@@ -105,7 +202,14 @@ extern void vApplicationMallocFailedHook(void) {
 /************************************************************************/
 /* handlers / callbacks                                                 */
 /************************************************************************/
-
+static void AFEC_pot_callback(void) {
+  adcData adc;
+  adc.value = afec_channel_get_value(AFEC_POT, AFEC_POT_CHANNEL);
+  BaseType_t xHigherPriorityTaskWoken = pdTRUE;
+  if(flagOn == 1) {
+  	xQueueSendFromISR(xQueueProc, &adc, &xHigherPriorityTaskWoken);
+  }
+}
 /************************************************************************/
 /* funcoes                                                              */
 /************************************************************************/
@@ -113,12 +217,71 @@ extern void vApplicationMallocFailedHook(void) {
 void io_init(void) {
 
 	// Ativa PIOs
-	pmc_enable_periph_clk(LED_PIO_ID);
+	pmc_enable_periph_clk(LED_PIO_ID1);
+	pmc_enable_periph_clk(LED_PIO_ID2);
+	pmc_enable_periph_clk(LED_PIO_ID3);
 	pmc_enable_periph_clk(BUT_PIO_ID);
+	pmc_enable_periph_clk(BUT1_PIO_ID);
+	pmc_enable_periph_clk(BUT2_PIO_ID);
+	pmc_enable_periph_clk(BUT3_PIO_ID);
 
 	// Configura Pinos
-	pio_configure(LED_PIO, PIO_OUTPUT_0, LED_IDX_MASK, PIO_DEFAULT | PIO_DEBOUNCE);
-	pio_configure(BUT_PIO, PIO_INPUT, BUT_IDX_MASK, PIO_PULLUP);
+	pio_configure(LED_PIO1, PIO_OUTPUT_0, LED_PIO_IDX_MASK1, PIO_DEFAULT | PIO_DEBOUNCE);
+	pio_configure(LED_PIO2, PIO_OUTPUT_0, LED_PIO_IDX_MASK2, PIO_DEFAULT | PIO_DEBOUNCE);
+	pio_configure(LED_PIO3, PIO_OUTPUT_0, LED_PIO_IDX_MASK3, PIO_DEFAULT | PIO_DEBOUNCE);
+	pio_configure(BUT_PIO, PIO_INPUT, BUT_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+	pio_configure(BUT1_PIO, PIO_INPUT, BUT1_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+	pio_configure(BUT2_PIO, PIO_INPUT, BUT2_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+	pio_configure(BUT3_PIO, PIO_INPUT, BUT3_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+
+	pio_handler_set(BUT_PIO,
+                  BUT_PIO_ID,
+                  BUT_IDX_MASK,
+                  PIO_IT_EDGE,
+                  but_callback);
+
+  	pio_handler_set(BUT1_PIO,
+				  BUT1_PIO_ID,
+				  BUT1_IDX_MASK,
+				  PIO_IT_EDGE,
+				  but1_callback);
+
+	pio_handler_set(BUT2_PIO,
+				  BUT2_PIO_ID,
+				  BUT2_IDX_MASK,
+				  PIO_IT_FALL_EDGE,
+				  but2_callback);
+
+	pio_handler_set(BUT3_PIO,
+				  BUT3_PIO_ID,
+				  BUT3_IDX_MASK,
+				  PIO_IT_FALL_EDGE,
+				  but3_callback);
+
+	// Ativa interrupção e limpa primeira IRQ gerada na ativacao
+	pio_enable_interrupt(BUT_PIO, BUT_IDX_MASK);
+	pio_get_interrupt_status(BUT_PIO);
+  
+	pio_enable_interrupt(BUT1_PIO, BUT1_IDX_MASK);
+  	pio_get_interrupt_status(BUT1_PIO);
+
+	pio_enable_interrupt(BUT2_PIO, BUT2_IDX_MASK);
+	pio_get_interrupt_status(BUT2_PIO);
+
+	pio_enable_interrupt(BUT3_PIO, BUT3_IDX_MASK);
+	pio_get_interrupt_status(BUT3_PIO);
+
+	NVIC_EnableIRQ(BUT_PIO_ID);
+	NVIC_SetPriority(BUT_PIO_ID, 4);
+
+	NVIC_EnableIRQ(BUT1_PIO_ID);
+	NVIC_SetPriority(BUT1_PIO_ID, 4);
+
+	NVIC_EnableIRQ(BUT2_PIO_ID);
+	NVIC_SetPriority(BUT2_PIO_ID, 4);
+
+	NVIC_EnableIRQ(BUT3_PIO_ID);
+	NVIC_SetPriority(BUT3_PIO_ID, 4);
 }
 
 static void configure_console(void) {
@@ -204,7 +367,7 @@ int hc05_init(void) {
 	vTaskDelay( 500 / portTICK_PERIOD_MS);
 	usart_send_command(USART_COM, buffer_rx, 1000, "AT", 100);
 	vTaskDelay( 500 / portTICK_PERIOD_MS);
-	usart_send_command(USART_COM, buffer_rx, 1000, "AT+NAMEFernanda3", 100);
+	usart_send_command(USART_COM, buffer_rx, 1000, "AT+NAMEFernanda", 100);
 	vTaskDelay( 500 / portTICK_PERIOD_MS);
 	usart_send_command(USART_COM, buffer_rx, 1000, "AT", 100);
 	vTaskDelay( 500 / portTICK_PERIOD_MS);
@@ -214,10 +377,27 @@ int hc05_init(void) {
 /************************************************************************/
 /* TASKS                                                                */
 /************************************************************************/
+void vTimerCallback(TimerHandle_t xTimer) {
+  /* Selecina canal e inicializa conversão */
+  afec_channel_enable(AFEC_POT, AFEC_POT_CHANNEL);
+  afec_start_software_conversion(AFEC_POT);
+}
+
+void task_comunicacao(void){
+	char readChar;
+	while(1){
+		if (usart_read(USART_COM, &readChar)==1){
+			if (readChar == 'W'){
+				flagHandshake = 1;
+			}
+			
+		}
+	}
+}
 
 void task_bluetooth(void) {
 	printf("Task Bluetooth started \n");
-
+	
 	printf("Inicializando HC05 \n");
 	config_usart0();
 	hc05_init();
@@ -225,66 +405,147 @@ void task_bluetooth(void) {
 	// configura LEDs e Botões
 	io_init();
 
+	config_AFEC_pot(AFEC_POT, AFEC_POT_ID, AFEC_POT_CHANNEL, AFEC_pot_callback);
+
+	xTimer = xTimerCreate(/* Just a text name, not used by the RTOS
+							kernel. */
+							"Timer",
+							/* The timer period in ticks, must be
+							greater than 0. */
+							100,
+							/* The timers will auto-reload themselves
+							when they expire. */
+							pdTRUE,
+							/* The ID is used to store a count of the
+							number of times the timer has expired, which
+							is initialised to 0. */
+							(void *)0,
+							/* Timer callback */
+							vTimerCallback);
+	xTimerStart(xTimer, 0);
+
 	char button1 = '0';
 	char button2= '0';
 	char button3= '0';
 	char eof = 'X';
-
+	int recived = 0;
+	int flagPulo = 0;
+	char readChar;
+    // variável para recever dados da fila
+  	adcData adc;
 	// Task não deve retornar.
-	while(1) {
-		// atualiza valor do botão
-		if(pio_get(BUT_PIO, PIO_INPUT, BUT_IDX_MASK) == 0) {
-			button1 = '1';
-		} else {
-			button1 = '0';
-		}
+  while (1) {
+	  if (flagOn == 1) {
+		  if (flagHandshake == 0) {
+			  button1 = 'W';
+			  while (!usart_is_tx_ready(USART_COM)) {
+				  vTaskDelay(10 / portTICK_PERIOD_MS);
+			  }
+			  usart_write(USART_COM, button1);
 
-		// atualiza valor do botão
-		if(pio_get(BUT2_PIO, PIO_INPUT, BUT2_IDX_MASK) == 0) {
-			button2 = '3';
-			} else {
-			button2 = '2';
+			  // Send end of packet
+			  while (!usart_is_tx_ready(USART_COM)) {
+				  vTaskDelay(10 / portTICK_PERIOD_MS);
+			  }
+			  usart_write(USART_COM, eof);
+			  flagHandshake = 1;
+
+			  // Sleep for 10 ms
+			  vTaskDelay(10 / portTICK_PERIOD_MS);
+			  } else {
+			  // Update button value
+			  if (xQueueReceive(xQueueButFreq, &recived, 10)) {
+				  if (recived == 1) {
+					pio_set(LED_PIO1, LED_PIO_IDX_MASK1);
+					vTaskDelay(50);
+					pio_clear(LED_PIO1, LED_PIO_IDX_MASK1);
+					button1 = '1';
+					// Button was released, set flagOn to 0
+				    flagOn = 0;
+				} else if (recived == 5) {
+				pio_set(LED_PIO2, LED_PIO_IDX_MASK2);
+				vTaskDelay(50);
+				pio_clear(LED_PIO2, LED_PIO_IDX_MASK2);
+				button1 = '5';
+				flagOn = 0;
+				} else if (recived == 7) {
+				pio_set(LED_PIO3, LED_PIO_IDX_MASK3);
+				vTaskDelay(50);
+				pio_clear(LED_PIO3, LED_PIO_IDX_MASK3);
+				button1 = '7';
+				flagOn = 0;
+				} else if (recived == 9) {
+				button1 = '9';
+				flagOn = 0;
+			}
+			  }
+
+				// envia status botão
+				while(!usart_is_tx_ready(USART_COM)) {
+					vTaskDelay(10 / portTICK_PERIOD_MS);
+				}
+				usart_write(USART_COM, button1);
+				
+				// envia fim de pacote
+				while(!usart_is_tx_ready(USART_COM)) {
+					vTaskDelay(10 / portTICK_PERIOD_MS);
+				}
+				usart_write(USART_COM, eof);
+
+				// dorme por 500 ms
+				vTaskDelay(10 / portTICK_PERIOD_MS);
+			}
 		}
-		// atualiza valor do botão
-		if(pio_get(BUT3_PIO, PIO_INPUT, BUT3_IDX_MASK) == 0) {
-			button3 = '5';
-			} else {
-			button3 = '4';
-		}
-		// envia status botão
-		while(!usart_is_tx_ready(USART_COM)) {
-			vTaskDelay(10 / portTICK_PERIOD_MS);
-		}
-		usart_write(USART_COM, button1);
-		// envia fim de pacote
-		while(!usart_is_tx_ready(USART_COM)) {
-			vTaskDelay(10 / portTICK_PERIOD_MS);
-		}
-		usart_write(USART_COM, eof);
-		// envia status botão
-		while(!usart_is_tx_ready(USART_COM)) {
-			vTaskDelay(10 / portTICK_PERIOD_MS);
-		}
-		usart_write(USART_COM, button2);
-		// envia fim de pacote
-		while(!usart_is_tx_ready(USART_COM)) {
-			vTaskDelay(10 / portTICK_PERIOD_MS);
-		}
-		usart_write(USART_COM, eof);
-		// envia status botão
-		while(!usart_is_tx_ready(USART_COM)) {
-			vTaskDelay(10 / portTICK_PERIOD_MS);
-		}
-		usart_write(USART_COM, button3);
-		// envia fim de pacote
-		while(!usart_is_tx_ready(USART_COM)) {
-			vTaskDelay(10 / portTICK_PERIOD_MS);
-		}
-		usart_write(USART_COM, eof);
-		// dorme por 500 ms
-		vTaskDelay(500 / portTICK_PERIOD_MS);
+		
+	}
 }
+
+static void config_AFEC_pot(Afec *afec, uint32_t afec_id, uint32_t afec_channel,
+                            afec_callback_t callback) {
+  /*************************************
+   * Ativa e configura AFEC
+   *************************************/
+  /* Ativa AFEC - 0 */
+  afec_enable(afec);
+
+  /* struct de configuracao do AFEC */
+  struct afec_config afec_cfg;
+
+  /* Carrega parametros padrao */
+  afec_get_config_defaults(&afec_cfg);
+
+  /* Configura AFEC */
+  afec_init(afec, &afec_cfg);
+
+  /* Configura trigger por software */
+  afec_set_trigger(afec, AFEC_TRIG_SW);
+
+  /*** Configuracao específica do canal AFEC ***/
+  struct afec_ch_config afec_ch_cfg;
+  afec_ch_get_config_defaults(&afec_ch_cfg);
+  afec_ch_cfg.gain = AFEC_GAINVALUE_0;
+  afec_ch_set_config(afec, afec_channel, &afec_ch_cfg);
+
+  /*
+  * Calibracao:
+  * Because the internal ADC offset is 0x200, it should cancel it and shift
+  down to 0.
+  */
+  afec_channel_set_analog_offset(afec, afec_channel, 0x200);
+
+  /***  Configura sensor de temperatura ***/
+  struct afec_temp_sensor_config afec_temp_sensor_cfg;
+
+  afec_temp_sensor_get_config_defaults(&afec_temp_sensor_cfg);
+  afec_temp_sensor_set_config(afec, &afec_temp_sensor_cfg);
+
+  /* configura IRQ */
+  afec_set_callback(afec, afec_channel, callback, 1);
+  NVIC_SetPriority(afec_id, 4);
+  NVIC_EnableIRQ(afec_id);
 }
+
+
 /************************************************************************/
 /* main                                                                 */
 /************************************************************************/
@@ -296,9 +557,18 @@ int main(void) {
 
 	configure_console();
 
+	xQueueButFreq = xQueueCreate(32, sizeof(uint32_t));
+	if (xQueueButFreq == NULL)
+		printf("falha em criar a queue \n");
+
+	xQueueProc = xQueueCreate(100, sizeof(adcData));
+	if (xQueueProc == NULL)
+		printf("falha em criar a queue xQueueProc \n");
+
+
 	/* Create task to make led blink */
 	xTaskCreate(task_bluetooth, "BLT", TASK_BLUETOOTH_STACK_SIZE, NULL,	TASK_BLUETOOTH_STACK_PRIORITY, NULL);
-
+	xTaskCreate(task_comunicacao, "COM", TASK_BLUETOOTH_STACK_SIZE, NULL,	TASK_BLUETOOTH_STACK_PRIORITY, NULL);
 	/* Start the scheduler. */
 	vTaskStartScheduler();
 
