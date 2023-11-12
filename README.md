@@ -11,7 +11,7 @@ Desenvolvendo um controle remoto.
 ### Ideia
 
 <!--  Descreva aqui em poucas palavras qual a ideia do seu controle. Se ele vai ser de jogo ou de aplicação -->
-Controle para a plataforma Youtube. Sua função será começar/pausar o conteúdo, avançar/voltar 5s de sua duração e controlar seu volume.
+Controle para a plataforma Youtube. Sua função será começar/pausar o conteúdo, avançar/voltar 10s de sua duração e controlar seu volume.
 
 ### Nome
 
@@ -44,6 +44,7 @@ Quais são os comandos/ operacões possíveis do seu controle?
 
 Quais os feedbacks que seu controle vai fornecer ao usuário?
 -->
+Botões do OLED:
 O botão 1 irá dar play/pause no vídeo.
 O botão 2 irá regredir 5s de vídeo.
 O botão 3 irá avançar 5s de vídeo.
@@ -59,9 +60,9 @@ Para cada Comando/ Feedback do seu controle, associe qual sensores/ atuadores pr
 - Volume da música: Fita de LED indicando potência do som
 -->
 Entradas digitais: - 3 botões (vermelho, verde e amarelo)
-- Começar/parar: Botão vermelho/ led vermelho
-- Regride 5s: Botão amarelo/ led amarelo
-- Avança 5s: Botão verde/ led verde 
+- Começar/parar: Botão 1 OLED/ Led 1 
+- Regride 5s: Botão 2 OLED/ Led 2
+- Avança 5s: Botão 3 OLED/ led 3 
 - Volume do vídeo: Potenciômetro 
 
 
